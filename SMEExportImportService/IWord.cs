@@ -91,6 +91,10 @@ namespace SMEExportImportService
         [OperationContract]
         [FaultContract(typeof(ServiceData))]
         string CBICustomerInfoExportASPXExport_Word(string regno, string userid, string curef, string DDL_FORMATFILESelectedValue);
+
+        [OperationContract]
+        [FaultContract(typeof(ServiceData))]
+        string ChannellingInitialDataEntryUploadExcel(string filePath, string apRegno, string aaNo, string productId, string prodSeq, string userId);
     }
 
     [DataContract]

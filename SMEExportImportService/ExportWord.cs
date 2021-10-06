@@ -8518,5 +8518,298 @@ namespace SMEExportImportService
             return mStatus;
 
         }
+
+        string IWord.ChannellingInitialDataEntryUploadExcel(string filePath, string apRegno, string aaNo, string productId, string prodSeq, string userId)
+        {
+            string mStatus = string.Empty;
+
+            /***================================================================================================***/
+            string branchcode = "";
+            string rm = "";
+            string aano = "";
+
+            /*Before masuk ke sini, aplikasi induk harus insert dulu ke application. So harus ada 2 aplikasi di sini.*/
+            string apregnoinduk = "";
+            string productidinduk = "";
+            string aanoinduk = "";
+            string accseqinduk = "";
+
+            conn.QueryString = "SELECT SU_BRANCH, USERID FROM SCUSER WHERE USERID = '" + userId + "'";
+            conn.ExecuteQuery();
+
+            branchcode = conn.GetFieldValue("SU_BRANCH");
+            rm = conn.GetFieldValue("USERID");
+            aano = aaNo;
+
+            apregnoinduk = apRegno;
+            productidinduk = productId;
+            aanoinduk = aaNo;
+            accseqinduk = prodSeq;
+            /***================================================================================================***/
+
+            Microsoft.Office.Interop.Excel.Application excelApp = null;
+            Microsoft.Office.Interop.Excel.Workbook excelWorkBook = null;
+            Microsoft.Office.Interop.Excel.Sheets excelSheet = null;
+
+            ArrayList orgId = new ArrayList();
+            ArrayList newId = new ArrayList();
+
+            Process[] oldProcess = Process.GetProcessesByName("EXCEL");
+            foreach (Process thisProcess in oldProcess) orgId.Add(thisProcess);
+
+            System.Data.DataTable dt1, dt2;
+
+            try
+            {
+                System.Threading.Thread.CurrentThread.CurrentCulture = System.Globalization.CultureInfo.CreateSpecificCulture("en-US");
+                System.Threading.Thread.CurrentThread.CurrentUICulture = new System.Globalization.CultureInfo("en-US");
+
+                excelApp = new Microsoft.Office.Interop.Excel.Application();
+                excelApp.Visible = false;
+                excelApp.DisplayAlerts = false;
+
+                Process[] newProcess = Process.GetProcessesByName("EXCEL");
+                foreach (Process thisProcess in newProcess) newId.Add(thisProcess);
+
+                //Save process into database
+                //SupportTools.saveProcessExcel(excelApp, newId, orgId, conn);
+
+                excelWorkBook = excelApp.Workbooks.Open(filePath,
+                    0, false, 5, "", "", true, Microsoft.Office.Interop.Excel.XlPlatform.xlWindows, "\t",
+                    false, false, 0, true);
+
+                excelSheet = excelWorkBook.Worksheets;
+
+                //Loop for Template Master
+                conn.QueryString = "SELECT SHEET_ID, SHEET_SEQ, STOREDPROCEDURE FROM CHANNELING_TEMPLATE_MASTER";
+                conn.ExecuteQuery();
+
+                dt1 = conn.GetDataTable().Copy();
+
+                if (dt1.Rows.Count > 0)
+                {
+                    for (int i = 0; i < dt1.Rows.Count; i++)
+                    {
+                        string sheetid = dt1.Rows[i][0].ToString().Trim();
+                        string sheetseq = dt1.Rows[i][1].ToString().Trim();
+                        string proc = dt1.Rows[i][2].ToString().Trim();
+                        string done = "";
+
+                        Microsoft.Office.Interop.Excel.Worksheet excelWorkSheet = (Microsoft.Office.Interop.Excel.Worksheet)excelSheet.get_Item(sheetid);
+
+                        //Loop for Template Detail
+                        conn.QueryString = "SELECT CELL_COL, DB_FIELD FROM CHANNELING_TEMPLATE_DETAIL ORDER BY ID_CHANNELING_TEMPLATE_DETAIL";
+                        conn.ExecuteQuery();
+                        dt2 = conn.GetDataTable().Copy();
+                        int n = dt2.Rows.Count; //19
+                        object[] par;
+                        par = new object[n];
+                        object[] dttype;
+                        dttype = new object[n];
+
+
+                        if (dt2.Rows.Count > 0)
+                        {
+                            int row = 2;
+                            bool flag = false;
+
+                            while (true)
+                            {
+                                for (int j = 0; j < (dt2.Rows.Count - 7); j++)
+                                {
+                                    //string xrow = dt2.Rows[j][1].ToString().Trim();
+                                    string xcol = dt2.Rows[j][0].ToString().Trim();
+                                    string datatype = dt2.Rows[j][1].ToString().Trim(); //data type
+                                    string cell_value;
+                                    string xcell = xcol + row.ToString();
+
+                                    Microsoft.Office.Interop.Excel.Range excelCell = (Microsoft.Office.Interop.Excel.Range)excelWorkSheet.get_Range(xcell, xcell);
+                                    try
+                                    {
+                                        if (excelCell != null)
+                                        {
+                                            cell_value = excelCell.Value2.ToString();
+                                            par[j] = (string)cell_value;
+                                            dttype[j] = (string)datatype;
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        //flag = true;
+                                        cell_value = "";
+                                        par[j] = "";
+                                        dttype[j] = (string)datatype;
+
+                                        if (j == 1 && (string)par[j] == "")
+                                        {
+                                            done = "done";
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if (done == "done")
+                                {
+                                    break;
+                                }
+
+                                string cif = "", rorac = "", ec = "";
+
+                                //Construct Query
+                                if (flag == false)
+                                {
+                                    string query = "EXEC " + proc + " ";
+                                    for (int k = 0; k < (n - 7); k++)
+                                    {
+                                        if (dttype[k].ToString() == "C")
+                                        {
+                                            if (k != 49 || k != 50 || k != 51)
+                                            {
+                                                query = query + "'" + par[k].ToString() + "'";
+                                            }
+                                        }
+                                        else if (dttype[k].ToString() == "N")
+                                        {
+                                            query = query + "" + par[k].ToString() + "";
+                                        }
+                                        else if (dttype[k].ToString() == "F")
+                                        {
+                                            query = query + "" + par[k].ToString() + "";
+                                        }
+                                        else if (dttype[k].ToString() == "D")
+                                        {
+                                            //convert ke datetime par[k].ToString();
+                                            query = query + "'" + par[k].ToString() + "'";
+                                        }
+
+                                        if (k < n - 1)
+                                            query = query + ", ";
+
+
+                                        if (k == 0)
+                                        {
+                                            cif = par[k].ToString();
+                                        }
+                                        else if (k == 13)
+                                        {
+                                            ec = par[k].ToString();
+                                        }
+                                        else if (k == 18)
+                                        {
+                                            rorac = par[k].ToString();
+                                        }
+                                    }
+
+                                    //array.Add(new UploadedData(cif,rorac,ec));
+                                    query = query + "'" + branchcode + "'";
+                                    query = query + ", ";
+                                    query = query + "'" + rm + "'";
+                                    query = query + ", ";
+                                    query = query + "'" + aano + "'";
+                                    query = query + ", ";
+                                    query = query + "'" + apregnoinduk + "'";
+                                    query = query + ", ";
+                                    query = query + "'" + productidinduk + "'";
+                                    query = query + ", ";
+                                    query = query + "'" + aanoinduk + "'";
+                                    query = query + ", ";
+                                    query = query + "'" + accseqinduk + "'";
+
+                                    //Run Query
+                                    conn.QueryString = query;
+                                    conn.ExecuteQuery();
+
+                                    row++;
+                                }
+                                else
+                                {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                /// Kill Process
+                /// 
+                try
+                {
+                    // close the excel objects
+                    if (excelWorkBook != null)
+                    {
+                        excelWorkBook.Close(true, filePath, null);
+                        excelWorkBook = null;
+                    }
+
+                    if (excelApp != null)
+                    {
+                        excelApp.Workbooks.Close();
+                        excelApp.Application.Quit();
+                        excelApp = null;
+                    }
+                }
+                catch { }
+
+                try
+                {
+                    for (int x = 0; x < newId.Count; x++)
+                    {
+                        Process xnewId = (Process)newId[x];
+
+                        bool bSameId = false;
+                        for (int z = 0; z < orgId.Count; z++)
+                        {
+                            Process xoldId = (Process)orgId[z];
+
+                            if (xnewId.Id == xoldId.Id)
+                            {
+                                bSameId = true;
+                                break;
+                            }
+                        }
+                        if (bSameId)
+                        {
+                            try
+                            {
+                                xnewId.Kill();
+                            }
+                            catch
+                            {
+                                continue;
+                            }
+                        }
+                    }
+
+                }
+                catch (Exception e)
+                {
+                    mStatus = e.Message;
+                }
+            }
+            catch (Exception ex)
+            {
+                ServiceData myServiceData = new ServiceData();
+                myServiceData.Result = false;
+                myServiceData.ErrorMessage = "Unforeseen error occured. Please try later.";
+                myServiceData.ErrorDetails = ex.ToString();
+                throw new FaultException<ServiceData>(myServiceData, ex.ToString());
+            }
+            finally
+            {
+                if (excelWorkBook != null)
+                {
+                    excelWorkBook.Close(true, filePath, null);
+                    excelWorkBook = null;
+                }
+                if (excelApp != null)
+                {
+                    excelApp.Workbooks.Close();
+                    excelApp.Application.Quit();
+                    excelApp = null;
+                }
+            }
+
+            return mStatus;
+        }
     }
 }

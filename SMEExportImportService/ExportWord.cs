@@ -14,6 +14,7 @@ using DMS.CuBESCore;
 using Microsoft.VisualBasic;
 using System.Drawing;
 using System.IO;
+using log4net;
 
 namespace SMEExportImportService
 {
@@ -25,8 +26,9 @@ namespace SMEExportImportService
     class ExportWord : IWord
     {
         protected Tools tool = new Tools();
+		private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
-        private void ReplaceBookmarkText(Microsoft.Office.Interop.Word.Document doc, string bookmarkName, string text)
+		private void ReplaceBookmarkText(Microsoft.Office.Interop.Word.Document doc, string bookmarkName, string text)
         {
             if (doc.Bookmarks.Exists(bookmarkName))
             {
@@ -979,7 +981,9 @@ namespace SMEExportImportService
 
         string IWord.DocumentExportASCXCreateExcel2(string templateid, string regno, string userid)
         {
-            string templatefilename = "",
+			log.Info(String.Format("Begin DocumentExportASCXCreateExcel2({0}, {1}, {2})", templateid, regno, userid));
+
+			string templatefilename = "",
                 outputfilename = "",
                 templatepath = "",
                 outputpath = "";
@@ -999,47 +1003,65 @@ namespace SMEExportImportService
                 System.Threading.Thread.CurrentThread.CurrentCulture = System.Globalization.CultureInfo.CreateSpecificCulture("en-US");
                 System.Threading.Thread.CurrentThread.CurrentUICulture = new System.Globalization.CultureInfo("en-US");
 
-                Microsoft.Office.Interop.Excel.Application excelApp = null;
-                Microsoft.Office.Interop.Excel.Workbook excelWorkBook = null;
-                Microsoft.Office.Interop.Excel.Sheets excelSheet = null;
+				log.Info("Defining Microsoft.Office.Interop.Excel.Application: excelApp");
+				Microsoft.Office.Interop.Excel.Application excelApp = null;
+				log.Info("Defining Microsoft.Office.Interop.Excel.Workbook: excelWorkBook");
+				Microsoft.Office.Interop.Excel.Workbook excelWorkBook = null;
+				log.Info("Defining Microsoft.Office.Interop.Excel.Sheets: excelSheet");
+				Microsoft.Office.Interop.Excel.Sheets excelSheet = null;
 
                 ArrayList orgId = new ArrayList();
                 ArrayList newId = new ArrayList();
 
-                //Collecting Existing Excel in Taskbar
-                Process[] oldProcess = Process.GetProcessesByName("EXCEL");
+				//Collecting Existing Excel in Taskbar
+				log.Info("Collecting Running EXCEL Process");
+				Process[] oldProcess = Process.GetProcessesByName("EXCEL");
                 foreach (Process thisProcess in oldProcess)
                     orgId.Add(thisProcess);
 
                 //Get Export Properties
                 conn.QueryString = "SELECT TOP 1 * FROM VW_DOCEXPORT_PARAMETER WHERE TEMPLATE_ID = '" + templateid + "'";
-                conn.ExecuteQuery();
+				log.Info(String.Format("Begin query: {0}", conn.QueryString));
+				conn.ExecuteQuery();
+				log.Info(String.Format("Finish query"));
 
-                if (conn.GetRowCount() > 0)
+				if (conn.GetRowCount() > 0)
                 {
                     templatefilename = conn.GetFieldValue("TEMPLATE_FILENAME");
-                    outputfilename = conn.GetFieldValue("UPLOAD_FILEFORMAT").Replace("#REGNO$", regno).Replace("#USERID$", userid) + ".XLSX";
-                    //templatepath = Server.MapPath(conn.GetFieldValue("TEMPLATE_PATH").Trim());
-                    //outputpath = Server.MapPath(conn.GetFieldValue("UPLOAD_PATH").Trim());
-                    templatepath = ConfigurationManager.AppSettings["serverPath"] + conn.GetFieldValue("TEMPLATE_PATH");
-                    outputpath = ConfigurationManager.AppSettings["serverPath"] + conn.GetFieldValue("UPLOAD_PATH");
+					log.Info(String.Format("Get templatefilename: {0}", templatefilename));
+					outputfilename = conn.GetFieldValue("UPLOAD_FILEFORMAT").Replace("#REGNO$", regno).Replace("#USERID$", userid) + ".XLSX";
+					log.Info(String.Format("Get outputfilename: {0}", outputfilename));
+					//templatepath = Server.MapPath(conn.GetFieldValue("TEMPLATE_PATH").Trim());
+					//outputpath = Server.MapPath(conn.GetFieldValue("UPLOAD_PATH").Trim());
+					templatepath = ConfigurationManager.AppSettings["serverPath"] + conn.GetFieldValue("TEMPLATE_PATH");
+					log.Info(String.Format("Get templatepath: {0}", templatepath));
+					outputpath = ConfigurationManager.AppSettings["serverPath"] + conn.GetFieldValue("UPLOAD_PATH");
+					log.Info(String.Format("Get outputpath: {0}", outputpath));
 
-                    templatepath = templatepath.Replace("..", "");
+					templatepath = templatepath.Replace("..", "");
                     outputpath = outputpath.Replace("..", "");
 
+                    /*
                     conn.QueryString = "INSERT INTO [DEBUG_SP] ([SP_NAME],[SP_ARG],[DBG_DATE]) VALUES ('','" + templatepath + "','" + DateAndTime.Now + "')";
-                    conn.ExecuteQuery();
+					log.Info(String.Format("Begin query: {0}", conn.QueryString));
+					conn.ExecuteQuery();
+					log.Info(String.Format("Finish query"));
 
-                    conn.QueryString = "INSERT INTO [DEBUG_SP] ([SP_NAME],[SP_ARG],[DBG_DATE]) VALUES ('','" + outputpath + "','" + DateAndTime.Now + "')";
-                    conn.ExecuteQuery();
+					conn.QueryString = "INSERT INTO [DEBUG_SP] ([SP_NAME],[SP_ARG],[DBG_DATE]) VALUES ('','" + outputpath + "','" + DateAndTime.Now + "')";
+					log.Info(String.Format("Begin query: {0}", conn.QueryString));
+					conn.ExecuteQuery();
+					log.Info(String.Format("Finish query"));
+                    */
 
-                    //try
-                    //{
+					try
+					{
+                        log.Info(String.Format("Instantiating new Excel.Application: excelApp"));
                         excelApp = new Microsoft.Office.Interop.Excel.Application();
                         excelApp.Visible = false;
                         excelApp.DisplayAlerts = false;
 
                         //Collectiong Existing Excel in Taskbar
+                        log.Info(String.Format("Collectiong Existing Excel in Taskbar"));
                         Process[] newProcess = Process.GetProcessesByName("EXCEL");
                         foreach (Process thisProcess in newProcess)
                             newId.Add(thisProcess);
@@ -1048,30 +1070,47 @@ namespace SMEExportImportService
                         //SupportTools.saveProcessExcel(excelApp, newId, orgId, conn);
 
                         fileIn = templatepath + templatefilename.Replace(".XLSX", ".XLSX");
+                        log.Info(String.Format("fileIn: {0}", fileIn));
+
+                        log.Info(String.Format("Begin excelApp.Workbooks.Open: excelWorkBook"));
                         excelWorkBook = excelApp.Workbooks.Open(fileIn, 0, false, 5, string.Empty, string.Empty, true, Microsoft.Office.Interop.Excel.XlPlatform.xlWindows, "\t|",
                             false, false, 0, true);
+                        log.Info(String.Format("Finish excelApp.Workbooks.Open: excelWorkBook"));
 
+                        log.Info(String.Format("Begin excelWorkBook.Worksheets: excelSheet"));
                         excelSheet = excelWorkBook.Worksheets;
+                        log.Info(String.Format("Finish excelWorkBook.Worksheets: excelSheet"));
 
                         //Loop for Template Master
                         conn.QueryString = "SELECT SHEET_ID, SHEET_SEQ, STOREDPROCEDURE FROM DOCEXPORT_TEMPLATE_MASTER WHERE TEMPLATE_ID = '" + templateid + "'";
+                        log.Info(String.Format("Begin query: {0}", conn.QueryString));
                         conn.ExecuteQuery();
+                        log.Info(String.Format("Finish query"));
 
                         dt1 = conn.GetDataTable().Copy();
 
                         if (dt1.Rows.Count > 0)
                         {
+                            log.Info(String.Format("Begin loop: dt1.Rows"));
                             for (int i = 0; i < dt1.Rows.Count; i++)
                             {
+                                log.Info(String.Format("dt1.Rows: {0}", i.ToString()));
                                 string sheetid = dt1.Rows[i][0].ToString().Trim();
+                                log.Info(String.Format("sheetid: {0}", sheetid));
                                 string sheetseq = dt1.Rows[i][1].ToString().Trim();
+                                log.Info(String.Format("sheetseq: {0}", sheetseq));
                                 string proc = dt1.Rows[i][2].ToString().Trim();
+                                log.Info(String.Format("proc: {0}", proc));
 
+                                log.Info(String.Format("Begin Excel.Worksheet.get_Item"));
                                 Microsoft.Office.Interop.Excel.Worksheet excelWorkSheet = (Microsoft.Office.Interop.Excel.Worksheet)excelSheet.get_Item(sheetid);
+                                log.Info(String.Format("Finish Excel.Worksheet.get_Item"));
 
                                 //Query Stored Procedure
                                 conn.QueryString = "EXEC " + proc + " '" + regno + "'";
+                                log.Info(String.Format("Begin query: {0}", conn.QueryString));
                                 conn.ExecuteQuery();
+                                log.Info(String.Format("Finish query"));
                                 dt3 = conn.GetDataTable().Copy();
 
                                 if (dt3.Rows.Count > 0)
@@ -1079,26 +1118,42 @@ namespace SMEExportImportService
                                     //Loop for Template Detail
                                     conn.QueryString = "SELECT CELL_ROW, CELL_COL, DB_FIELD FROM DOCEXPORT_TEMPLATE_DETAIL WHERE TEMPLATE_ID = '" + templateid +
                                         "' AND SHEET_ID = '" + sheetid + "' AND SHEET_SEQ = '" + sheetseq + "' ORDER BY SEQ";
+                                    log.Info(String.Format("Begin query: {0}", conn.QueryString));
                                     conn.ExecuteQuery();
+                                    log.Info(String.Format("Finish query"));
                                     dt2 = conn.GetDataTable().Copy();
 
+                                    log.Info(String.Format("Begin loop: dt3.Rows"));
                                     for (int k = 0; k < dt3.Rows.Count; k++)
                                     {
+                                        log.Info(String.Format("dt3.Rows: {0}", k.ToString()));
+                                        log.Info(String.Format("Begin loop: dt2.Rows"));
                                         for (int j = 0; j < dt2.Rows.Count; j++)
                                         {
+                                            log.Info(String.Format("dt2.Rows: {0}", j.ToString()));
                                             int irow;
                                             try { irow = int.Parse(dt2.Rows[j][0].ToString().Trim()) + k; }
                                             catch { irow = 1; }
+                                            log.Info(String.Format("irow: {0}", irow.ToString()));
                                             string xrow = irow.ToString().Trim();
+                                            log.Info(String.Format("xrow: {0}", xrow.ToString()));
                                             string xcol = dt2.Rows[j][1].ToString().Trim();
+                                            log.Info(String.Format("xcol: {0}", xcol));
                                             string dbfield = dt2.Rows[j][2].ToString().Trim();
+                                            log.Info(String.Format("dbfield: {0}", dbfield));
                                             string cell_value = dt3.Rows[k][dbfield].ToString().Trim();
+                                            log.Info(String.Format("cell_value: {0}", cell_value));
                                             string xcell = xcol + xrow;
+                                            log.Info(String.Format("xcell: {0}", xcell));
 
+                                            log.Info(String.Format("Begin Excel.Range.get_Range: excelCell"));
                                             Microsoft.Office.Interop.Excel.Range excelCell = (Microsoft.Office.Interop.Excel.Range)excelWorkSheet.get_Range(xcell, xcell);
+                                            log.Info(String.Format("Finish Excel.Range.get_Range"));
                                             if (excelCell != null)
                                             {
+                                                log.Info(String.Format("Begin set excelCell.Value2"));
                                                 excelCell.Value2 = cell_value;
+                                                log.Info(String.Format("Finish set excelCell.Value2"));
                                                 writeitem++;
                                             }
                                         }
@@ -1116,8 +1171,11 @@ namespace SMEExportImportService
                             //{
                             //Save Excel File
                             fileOut = outputpath + outputfilename.Replace(".XLSX", ".XLSX");
+                            log.Info(String.Format("fileOut: {0}", fileOut));
+                            log.Info(String.Format("Begin Excel.Workbook.SaveAs"));
                             excelWorkBook.SaveAs(fileOut, Microsoft.Office.Interop.Excel.XlFileFormat.xlOpenXMLWorkbook, null, null, null, null,
                                 Microsoft.Office.Interop.Excel.XlSaveAsAccessMode.xlNoChange, null, null, null, true);
+                            log.Info(String.Format("Finish Excel.Workbook.SaveAs"));
 
                             savestatus = true;
                             //}
@@ -1136,7 +1194,9 @@ namespace SMEExportImportService
                                     regno + "', '" +
                                     userid + "', '" +
                                     outputfilename + "'";
+                                log.Info(String.Format("Begin query: {0}", conn.QueryString));
                                 conn.ExecuteQuery();
+                                log.Info(String.Format("Finish query"));
 
                                 //View Upload Files
                                 //ViewExportFiles();
@@ -1149,16 +1209,17 @@ namespace SMEExportImportService
                             returnmsg = "Template Procedure Not Yet Defined!!";
                             return returnmsg;
                         }
-                    //}
-                    //catch (Exception e)
-                    //{
+                    }
+                    catch (Exception e)
+                    {
+                        log.Error(String.Format("Error: {0}", e.Message), e);
                         //Response.Write("<!-- " + e.Message + "\n" + e.StackTrace + " -->\n");
 
                         //Return Fail Message
                         //returnmsg = e.Message + "\n" + e.StackTrace;
-                    //}
-                    //finally
-                    //{
+                    }
+                    finally
+                    {
                         if (excelWorkBook != null)
                         {
                             excelWorkBook.Close(true, fileOut, null);
@@ -1170,10 +1231,10 @@ namespace SMEExportImportService
                             excelApp.Application.Quit();
                             excelApp = null;
                         }
-                    //}
+                    }
 
-                    //try
-                    //{
+                    try
+                    {
                         for (int x = 0; x < newId.Count; x++)
                         {
                             Process xnewId = (Process)newId[x];
@@ -1201,8 +1262,8 @@ namespace SMEExportImportService
                                 }
                             }
                         }
-                    //}
-                    //catch { }
+                    }
+                    catch { }
                 }
                 else
                 {
@@ -1212,8 +1273,11 @@ namespace SMEExportImportService
             }
             catch (Exception ex)
             {
+                log.Error(String.Format("Error: {0}", ex.Message), ex);
+                /*
                 conn.QueryString = "INSERT INTO [DEBUG_SP] ([SP_NAME],[SP_ARG],[DBG_DATE]) VALUES ('','" + ex.ToString() + "','" + DateAndTime.Now + "')";
                 conn.ExecuteQuery();
+                */
                 ServiceData myServiceData = new ServiceData();
                 myServiceData.Result = false;
                 myServiceData.ErrorMessage = "Unforeseen error occured. Please try later.";
@@ -1221,6 +1285,7 @@ namespace SMEExportImportService
                 throw new FaultException<ServiceData>(myServiceData, ex.ToString());
             }
 
+            log.Info(String.Format("Finish DocumentExportASCXCreateExcel2"));
             return returnmsg;
         }
 

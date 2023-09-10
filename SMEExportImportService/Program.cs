@@ -7,6 +7,7 @@ using System.Threading;
 using System.Configuration;
 using DMS.DBConnection;
 using System.Data;
+using log4net;
 
 namespace SMEExportImportService
 {
@@ -14,7 +15,8 @@ namespace SMEExportImportService
     class Program
     {
         public static Timer timer;
-        public static void Main(string[] args)
+		private static readonly ILog log = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+		public static void Main(string[] args)
         {
             //timer = new Timer(ScanningAlphabitFolder.Callback, timer, 0, long.Parse(ConfigurationManager.AppSettings["AlphabitScanningDownloadFolder"]));
 
@@ -31,7 +33,8 @@ namespace SMEExportImportService
                 host.Open();
                 host2.Open();
 
-                Console.WriteLine("Services is started !");
+				log.Info("Services is started ");
+				Console.WriteLine("Services is started !");
                 Console.ReadLine();
 
                 host2.Open();
